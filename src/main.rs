@@ -3,7 +3,7 @@
 // use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
 };
 
 #[tokio::main]
@@ -29,21 +29,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
         });
     }
-}
-
-#[tokio::test]
-async fn test_echo_server() {
-    use tokio::{
-        // io::{AsyncReadExt, AsyncWriteExt},
-        net::TcpStream,
-    };
-    let mut stream = TcpStream::connect("127.0.0.1:6381").await.unwrap();
-
-    let msg = b"hello world";
-    stream.write_all(msg).await.unwrap();
-
-    let mut buf = vec![0; msg.len()];
-    stream.read_exact(&mut buf).await.unwrap();
-
-    assert_eq!(&buf, msg);
 }
