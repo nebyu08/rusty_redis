@@ -30,3 +30,5 @@ async fn test_echo_server() {
 
     let _ = server.kill();
 }
+
+fn resp() {}
