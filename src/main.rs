@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use tokio::net::TcpStream;
+// use tokio::process::Command;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -17,25 +22,62 @@ pub enum RespValue {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:6381").await?;
+    let db = Arc::new(Mutex::new(HashMap::<String, String>::new()));
 
     loop {
-        let (mut socket, _) = listener.accept().await?;
+        let (socket, _) = listener.accept().await?;
+        let db_clone = Arc::clone(&db);
 
         tokio::spawn(async move {
-            let mut buf = vec![0; 1024];
-            match socket.read(&mut buf).await {
-                Ok(n) if n == 0 => return,
-                Ok(n) => {
-                    if socket.write_all(&buf[0..n]).await.is_err() {
-                        return;
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Failed to read from socket {}", e);
-                    return;
-                }
-            };
+            handle_client(socket, db_clone)
+                .await
+                .unwrap_or_else(|e| eprint!("client error: {}", e));
         });
+    }
+}
+
+async fn handle_client(
+    mut socket: TcpStream,
+    db: Arc<Mutex<HashMap<String, String>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut buf = vec![0; 1024];
+    loop {
+        let n = socket.read(&mut buf).await?;
+        if n == 0 {
+            return Ok(());
+        }
+        let command_str = String::from_utf8_lossy(&buf[0..n]).trim().to_uppercase();
+        let mut parts = command_str.split_whitespace();
+        let command = parts.next();
+
+        let response = match command {
+            Some("PING") => "+PONG\r\n".to_string(),
+            Some("SET") => {
+                let key = parts.next();
+                let value = parts.next();
+                if let (Some(k), Some(v)) = (key, value) {
+                    db.lock().unwrap().insert(k.to_string(), v.to_string());
+                    "+OK\r\n".to_string()
+                } else {
+                    "-Err something wrong happend during Set of value\r\n".to_string()
+                }
+            }
+            Some("GET") => {
+                let key = parts.next();
+                if let Some(k) = key {
+                    if let Some(value) = db.lock().unwrap().get(k) {
+                        format!("${}\r\n{}\r\n", value.len(), value)
+                    } else {
+                        "$-1\r\n".to_string()
+                    }
+                } else {
+                    "-Err wrong number of values for Get command \r\n".to_string()
+                }
+            }
+            _ => "-Err unknown command \r\n".to_string(),
+        };
+
+        socket.write_all(response.as_bytes()).await?;
     }
 }
 
@@ -51,7 +93,7 @@ pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
         RespValue::Integer(i) => {
             buffer.push(b':');
             buffer.extend_from_slice(i.to_string().as_bytes());
-            buffer.extend_from_slice(b"\n\r");
+            buffer.extend_from_slice(b"\r\n");
         }
 
         RespValue::BulkString(bytes) => {
@@ -70,7 +112,6 @@ pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
                 buffer.extend_from_slice(&encode_resp_value(element));
             }
         }
-
         _ => unimplemented!(),
     }
 
