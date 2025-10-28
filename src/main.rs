@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use tokio::net::TcpStream;
-// use tokio::process::Command;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -22,6 +21,7 @@ pub enum RespValue {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:6381").await?;
+    // request => deserialize => catagorizes it into number and string
     let db = Arc::new(Mutex::new(HashMap::<String, String>::new()));
 
     loop {
@@ -43,43 +43,52 @@ async fn handle_client(
     let mut buf = vec![0; 1024];
     loop {
         let n = socket.read(&mut buf).await?;
+        //deserialize here
         if n == 0 {
             return Ok(());
         }
-        let command_str = String::from_utf8_lossy(&buf[0..n]).trim().to_uppercase();
-        let mut parts = command_str.split_whitespace();
-        let command = parts.next();
-
-        let response = match command {
-            Some("PING") => "+PONG\r\n".to_string(),
-            Some("SET") => {
-                let key = parts.next();
-                let value = parts.next();
-                if let (Some(k), Some(v)) = (key, value) {
-                    db.lock().unwrap().insert(k.to_string(), v.to_string());
-                    "+OK\r\n".to_string()
-                } else {
-                    "-Err something wrong happend during Set of value\r\n".to_string()
-                }
+        let slice = &buf[..n];
+        let (req, _) = match decode_resp_value(slice) {
+            Some(v) => v,
+            None => {
+                socket.write_all(b"-Error invalid RESP\r\n").await?;
+                continue;
             }
-            Some("GET") => {
-                let key = parts.next();
-                if let Some(k) = key {
-                    if let Some(value) = db.lock().unwrap().get(k) {
-                        format!("${}\r\n{}\r\n", value.len(), value)
-                    } else {
-                        "$-1\r\n".to_string()
-                    }
-                } else {
-                    "-Err wrong number of values for Get command \r\n".to_string()
-                }
-            }
-            _ => "-Err unknown command \r\n".to_string(),
         };
 
-        socket.write_all(response.as_bytes()).await?;
+        let response = match req {
+            RespValue::Array(items) if !items.is_empty() => match items[0] {
+                RespValue::BulkString(ref cmd_bytes) => {
+                    match std::str::from_utf8(cmd_bytes)
+                        .unwrap()
+                        .to_uppercase()
+                        .as_str()
+                    {
+                        "PING" => RespValue::SimpleString("PONG".into()),
+                        "SET" => handle_set(&items, &db),
+                        "GET" => handle_get(&items, &db),
+                        _ => RespValue::Error("unknown command".into()),
+                    }
+                }
+                _ => RespValue::Error(("Invalid command".into())),
+            },
+
+            _ => RespValue::Error("command must be array".into()),
+        };
     }
 }
+
+fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
+    if items.len() != 3 {
+        return RespValue::Error("Wrong number of arguments for set".into());
+    }
+
+    let key= match &items[1]{
+        RespValue::BulkString(k)=> String::from_utf8_lossy(k).into_owned(),
+    }
+}
+
+fn handle_get() {}
 
 pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
     let mut buffer = Vec::new();
@@ -127,8 +136,6 @@ pub fn decode_resp_value(bytes: &[u8]) -> Option<(RespValue, usize)> {
         b'+' => {
             let end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
             let s = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
-            // Some((RespValue::SimpleString((s)), end_index + 2))
-            // Some(RespValue::SimpleString((s)), end_index + 2)
             Some((RespValue::SimpleString(s), end_index + 2))
         }
 
