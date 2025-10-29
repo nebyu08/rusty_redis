@@ -70,11 +70,14 @@ async fn handle_client(
                         _ => RespValue::Error("unknown command".into()),
                     }
                 }
-                _ => RespValue::Error(("Invalid command".into())),
+                _ => RespValue::Error("Invalid command".into()),
             },
 
             _ => RespValue::Error("command must be array".into()),
         };
+
+        let encoded = encode_resp_value(&response);
+        socket.write_all(&encoded).await?;
     }
 }
 
@@ -83,12 +86,34 @@ fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> 
         return RespValue::Error("Wrong number of arguments for set".into());
     }
 
-    let key= match &items[1]{
-        RespValue::BulkString(k)=> String::from_utf8_lossy(k).into_owned(),
-    }
+    let key = match &items[1] {
+        RespValue::BulkString(k) => String::from_utf8_lossy(k).into_owned(),
+        _ => return RespValue::Error("key must be a bulk string".into()),
+    };
+
+    let value = match &items[2] {
+        RespValue::BulkString(v) => String::from_utf8_lossy(v).into_owned(),
+        _ => return RespValue::Error("value must be a bulk strin".into()),
+    };
+
+    db.lock().unwrap().insert(key, value);
+    RespValue::BulkString("Ok".into())
 }
 
-fn handle_get() {}
+fn handle_get(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
+    if items.len() != 2 {
+        return RespValue::Error("wrong number of arguments".into());
+    }
+    let key = match &items[1] {
+        RespValue::BulkString(k) => String::from_utf8_lossy(k).into_owned(),
+        _ => return RespValue::Error("key must be strin".into()),
+    };
+
+    match db.lock().unwrap().get(&key) {
+        Some(value) => RespValue::BulkString(value.clone().into_bytes()),
+        None => RespValue::Null,
+    }
+}
 
 pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
     let mut buffer = Vec::new();
@@ -120,6 +145,10 @@ pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
             for element in elements {
                 buffer.extend_from_slice(&encode_resp_value(element));
             }
+        }
+
+        RespValue::Null => {
+            buffer.extend_from_slice(b"$-1\r\n");
         }
         _ => unimplemented!(),
     }
