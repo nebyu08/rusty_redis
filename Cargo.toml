@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+serial_test={version="3.0"}
 # resp_protocol={path='/src/resp_protocol'}

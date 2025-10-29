@@ -1,3 +1,4 @@
+use serial_test::serial;
 use std::time::Duration;
 
 use tokio::{
@@ -8,6 +9,7 @@ use tokio::{
 };
 
 #[tokio::test]
+#[serial]
 async fn test_echo_server() {
     let mut server = Command::new("cargo")
         .arg("run")
@@ -32,6 +34,7 @@ async fn test_echo_server() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_ping() {
     let mut server = Command::new("cargo")
         .arg("run")
@@ -42,7 +45,8 @@ async fn test_ping() {
     sleep(Duration::from_millis(300)).await;
 
     let mut stream = TcpStream::connect("127.0.0.1:6381").await.unwrap();
-    stream.write_all(b"PING\r\n").await.unwrap();
+    // stream.write_all(b"PING\r\n").await.unwrap();
+    stream.write_all(b"*1\r\n$4\r\nPING\r\n").await.unwrap();
 
     let mut buf = vec![0u8; 7]; // "+PONG\r\n" = 7 bytes
     stream.read_exact(&mut buf).await.unwrap();
@@ -52,6 +56,7 @@ async fn test_ping() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_set() {
     let mut server = Command::new("cargo")
         .arg("run")
@@ -62,7 +67,11 @@ async fn test_set() {
     sleep(Duration::from_millis(300)).await;
 
     let mut stream = TcpStream::connect("127.0.0.1:6381").await.unwrap();
-    stream.write_all(b"SET name nebiyu\r\n").await.unwrap();
+    // stream.write_all(b"SET name nebiyu\r\n").await.unwrap();
+    stream
+        .write_all(b"*3\r\n$3\r\nSET\r\n$4\r\nname\r\n$6\r\nnebiyu\r\n")
+        .await
+        .unwrap();
 
     let mut buf = vec![0u8; 5]; // "+OK\r\n" = 5 bytes
     stream.read_exact(&mut buf).await.unwrap();
@@ -72,6 +81,7 @@ async fn test_set() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_get() {
     let mut server = Command::new("cargo")
         .arg("run")
@@ -83,12 +93,19 @@ async fn test_get() {
 
     let mut stream = TcpStream::connect("127.0.0.1:6381").await.unwrap();
 
-    stream.write_all(b"SET lang rust\r\n").await.unwrap();
+    // stream.write_all(b"SET lang rust\r\n").await.unwrap();
+    stream
+        .write_all(b"*3\r\n$3\r\nSET\r\n$4\r\nlang\r\n$4\r\nrust\r\n")
+        .await
+        .unwrap();
     let mut tmp = vec![0u8; 5];
     stream.read_exact(&mut tmp).await.unwrap(); // "+OK\r\n"
 
-    stream.write_all(b"GET lang\r\n").await.unwrap();
-
+    // stream.write_all(b"GET lang\r\n").await.unwrap();
+    stream
+        .write_all(b"*2\r\n$3\r\nGET\r\n$4\r\nlang\r\n")
+        .await
+        .unwrap();
     let mut buf = vec![0u8; 10]; // e.g. "$4\r\nrust\r\n"
     let size = stream.read(&mut buf).await.unwrap();
 
