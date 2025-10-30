@@ -97,7 +97,7 @@ fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> 
     };
 
     db.lock().unwrap().insert(key, value);
-    RespValue::BulkString("Ok".into())
+    RespValue::SimpleString("OK".into())
 }
 
 fn handle_get(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
