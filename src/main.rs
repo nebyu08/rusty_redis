@@ -40,6 +40,41 @@ async fn handle_client(
     mut socket: TcpStream,
     db: Arc<Mutex<HashMap<String, String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // handle stream cases
+    let mut buffer = Vec::new();
+    let mut temp_buff = [0u8; 1024];
+    let mut resp_decode: RespValue;
+
+    loop {
+        match socket.read(&mut temp_buff).await {
+            Ok(0) => {
+                println!("connection closed");
+                break;
+            }
+
+            Ok(n) => {
+                let decode = decode_resp_value(&temp_buff[..n]);
+                match decode {
+                    Some((resp, _)) => {
+                        resp_decode = resp;
+                        println!("Decoded RESP Value: {:?}", resp_decode);
+                        // You can process resp_decode as needed here
+                    }
+                    None => {
+                        eprintln!("Failed to decode RESP value from the received data");
+                    }
+                }
+                buffer.extend_from_slice(&temp_buff[..n]);
+            }
+
+            Err(e) => {
+                eprintln!("Failed to read from socket = {:?}", e);
+                break;
+            }
+        }
+    }
+
+    // this for when the input from server is full
     let mut buf = vec![0; 1024];
     loop {
         let n = socket.read(&mut buf).await?;
