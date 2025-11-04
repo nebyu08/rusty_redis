@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self, Sender};
 use std::{thread};
 
-// operations to be done on the db
 pub enum DBMessage {
     Set {
         key:String,

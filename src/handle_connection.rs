@@ -14,9 +14,7 @@ use crate::db_ops::DBMessage;
 pub async fn handle_client(
     mut socket: TcpStream,
     db_sender:Arc::<Sender<DBMessage>>
-    // db: Arc<Mutex<HashMap<String, String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // handle stream cases
     let mut buffer = Vec::new();
     let mut temp_buff = [0u8; 1024];
 
