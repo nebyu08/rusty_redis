@@ -41,7 +41,7 @@ pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
             buffer.extend_from_slice(s.as_bytes());
             buffer.extend_from_slice(b"\r\n");
         }
-        _ => unimplemented!(),
+        // _ => unimplemented!(),
     }
 
     buffer

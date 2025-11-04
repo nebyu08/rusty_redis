@@ -1,9 +1,10 @@
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::mpsc:: Sender;
 
+use crate::db_ops::DBMessage;
 use crate::export_type::RespValue;
 
-pub  fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
+pub  fn handle_set(items: &[RespValue], db_sender: &Arc::<Sender<DBMessage>>) -> RespValue {
     if items.len() != 3 {
         return RespValue::Error("Wrong number of arguments for set".into());
     }
@@ -18,11 +19,13 @@ pub  fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>
         _ => return RespValue::Error("value must be a bulk strin".into()),
     };
 
-    db.lock().unwrap().insert(key, value);
+    db_sender.send(DBMessage::Set { key, value }).expect("failed to send to db");
+
+    // db.lock().unwrap().insert(key, value);
     RespValue::SimpleString("OK".into())
 }
 
-pub fn handle_get(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
+pub fn handle_get(items: &[RespValue],db_sender: &Arc::<Sender<DBMessage>>) -> RespValue {
     if items.len() != 2 {
         return RespValue::Error("wrong number of arguments".into());
     }
@@ -31,8 +34,14 @@ pub fn handle_get(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>)
         _ => return RespValue::Error("key must be strin".into()),
     };
 
-    match db.lock().unwrap().get(&key) {
-        Some(value) => RespValue::BulkString(value.clone().into_bytes()),
-        None => RespValue::Null,
+    let (response_tx, response_rx) = std::sync::mpsc::channel();
+
+    db_sender.send(DBMessage::Get { key, response_sender: response_tx }).expect("failed to get command");
+
+    match response_rx.recv(){
+        Ok(Some(val))=>RespValue::BulkString(val.into_bytes()),
+        Ok(None) => RespValue::Null,
+        Err(_) => RespValue::Error("DB thread crashed".into())
     }
+
 }

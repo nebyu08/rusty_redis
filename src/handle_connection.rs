@@ -1,7 +1,7 @@
 
 use tokio::net::TcpStream;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc:: Sender;
+use std::sync::Arc;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
@@ -9,10 +9,12 @@ use tokio::{
 use crate::hash_operations::{handle_get, handle_set};
 use crate::serial_deserial::{decode_resp_value, encode_resp_value};
 use crate::export_type::RespValue;
+use crate::db_ops::DBMessage;
 
 pub async fn handle_client(
     mut socket: TcpStream,
-    db: Arc<Mutex<HashMap<String, String>>>,
+    db_sender:Arc::<Sender<DBMessage>>
+    // db: Arc<Mutex<HashMap<String, String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // handle stream cases
     let mut buffer = Vec::new();
@@ -39,8 +41,8 @@ pub async fn handle_client(
                             .as_str()
                         {
                             "PING" => RespValue::SimpleString("PONG".into()),
-                            "SET" => handle_set(&items, &db),
-                            "GET" => handle_get(&items, &db),
+                            "SET" => handle_set(&items, &db_sender),
+                            "GET" => handle_get(&items, &db_sender),
                             _ => RespValue::Error("unknown command".into()),
                         }
                     }
