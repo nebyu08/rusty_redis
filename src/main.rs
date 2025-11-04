@@ -43,78 +43,48 @@ async fn handle_client(
     // handle stream cases
     let mut buffer = Vec::new();
     let mut temp_buff = [0u8; 1024];
-    let mut resp_decode: RespValue;
 
     loop {
-        match socket.read(&mut temp_buff).await {
-            Ok(0) => {
-                println!("connection closed");
-                break;
-            }
-
-            Ok(n) => {
-                let decode = decode_resp_value(&temp_buff[..n]);
-                match decode {
-                    Some((resp, _)) => {
-                        resp_decode = resp;
-                        println!("Decoded RESP Value: {:?}", resp_decode);
-                        // You can process resp_decode as needed here
-                    }
-                    None => {
-                        eprintln!("Failed to decode RESP value from the received data");
-                    }
-                }
-                buffer.extend_from_slice(&temp_buff[..n]);
-            }
-
-            Err(e) => {
-                eprintln!("Failed to read from socket = {:?}", e);
-                break;
-            }
-        }
-    }
-
-    // this for when the input from server is full
-    let mut buf = vec![0; 1024];
-    loop {
-        let n = socket.read(&mut buf).await?;
-        //deserialize here
+        let n = socket.read(&mut temp_buff).await?;
         if n == 0 {
-            return Ok(());
+            println!("Client disconnected");
+            break Ok(());
         }
-        let slice = &buf[..n];
-        let (req, _) = match decode_resp_value(slice) {
-            Some(v) => v,
-            None => {
-                socket.write_all(b"-Error invalid RESP\r\n").await?;
-                continue;
-            }
-        };
 
-        let response = match req {
-            RespValue::Array(items) if !items.is_empty() => match items[0] {
-                RespValue::BulkString(ref cmd_bytes) => {
-                    match std::str::from_utf8(cmd_bytes)
-                        .unwrap()
-                        .to_uppercase()
-                        .as_str()
-                    {
-                        "PING" => RespValue::SimpleString("PONG".into()),
-                        "SET" => handle_set(&items, &db),
-                        "GET" => handle_get(&items, &db),
-                        _ => RespValue::Error("unknown command".into()),
+        buffer.extend_from_slice(&temp_buff[..n]);
+
+        while let Some((req,used_bytes  )) = decode_resp_value(&buffer){
+            buffer.drain(0..used_bytes);
+
+            let response = match req {
+                RespValue::Array(items) if !items.is_empty() => match items[0] {
+                    RespValue::BulkString(ref cmd_bytes) => {
+                        match std::str::from_utf8(cmd_bytes)
+                            .unwrap()
+                            .to_uppercase()
+                            .as_str()
+                        {
+                            "PING" => RespValue::SimpleString("PONG".into()),
+                            "SET" => handle_set(&items, &db),
+                            "GET" => handle_get(&items, &db),
+                            _ => RespValue::Error("unknown command".into()),
+                        }
                     }
-                }
-                _ => RespValue::Error("Invalid command".into()),
-            },
+                    _ => RespValue::Error("Invalid command".into()),
+                },
 
-            _ => RespValue::Error("command must be array".into()),
-        };
+                _ => RespValue::Error("command must be array".into()),
+            };
 
-        let encoded = encode_resp_value(&response);
-        socket.write_all(&encoded).await?;
+            let resp_bytes = encode_resp_value(&response);
+            socket.write_all(&resp_bytes).await?;
+        }
     }
 }
+
+
+        
+
 
 fn handle_set(items: &[RespValue], db: &Arc<Mutex<HashMap<String, String>>>) -> RespValue {
     if items.len() != 3 {
