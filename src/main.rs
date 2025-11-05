@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let (socket, _) = listener.accept().await?;
         // let db_clone = Arc::clone(&db);
-        let db_sender_clone=Arc::clone(&db_sender);
+        let db_sender_clone=db_sender.clone();
 
         tokio::spawn(async move {
             handle_client(socket, db_sender_clone)

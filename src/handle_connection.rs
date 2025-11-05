@@ -1,6 +1,6 @@
 
 use tokio::net::TcpStream;
-use std::sync::mpsc:: Sender;
+use tokio::sync::mpsc:: Sender;
 use std::sync::Arc;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -39,8 +39,8 @@ pub async fn handle_client(
                             .as_str()
                         {
                             "PING" => RespValue::SimpleString("PONG".into()),
-                            "SET" => handle_set(&items, &db_sender),
-                            "GET" => handle_get(&items, &db_sender),
+                            "SET" => handle_set(&items, &db_sender).await,
+                            "GET" => handle_get(&items, &db_sender).await,
                             _ => RespValue::Error("unknown command".into()),
                         }
                     }
