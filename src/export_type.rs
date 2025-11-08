@@ -6,5 +6,4 @@ pub enum RespValue {
     BulkString(Vec<u8>),
     Array(Vec<RespValue>),
     Null,
-    // Boolean(bool),
 }

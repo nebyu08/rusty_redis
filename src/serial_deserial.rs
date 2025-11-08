@@ -47,68 +47,124 @@ pub fn encode_resp_value(value: &RespValue) -> Vec<u8> {
     buffer
 }
 
+pub enum DecodeResult {
+    Complete(RespValue, usize),
+    Incomplete,
+    Error(String),  
+}
 
-pub fn decode_resp_value(bytes: &[u8]) -> Option<(RespValue, usize)> {
+pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
     if bytes.is_empty() {
-        return None;
+        return DecodeResult::Incomplete;
     }
 
     const MAX_BULK_STRING_SIZE: usize = 512 * 1024 * 1024; // 512 MB
 
     match bytes[0] {
         b'+' => {
-            let end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
-            let s = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
-            Some((RespValue::SimpleString(s), end_index + 2))
+        if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r'){
+            let s =match String::from_utf8(bytes[1..end_index+1].to_vec()) {
+                Ok(v) => v,
+                Err(_) => return DecodeResult::Error("Invalid UTF-8".into())
+      
+            }; 
+            return DecodeResult::Complete(RespValue::SimpleString(s), end_index + 3);
+        // Some((RespValue::SimpleString(s), end_index + 2))
+        }else {
+            return DecodeResult::Incomplete;
+        }
         }
 
         b':' => {
-            let end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
-            let i_str = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
-            let i_itr = i_str.parse::<i64>().ok()?;
-            Some((RespValue::Integer(i_itr), end_index + 2))
+
+            if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r'){
+                let i_str = match String::from_utf8(bytes[1..end_index+1].to_vec()) {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),      
+                };
+                let i_itr = match i_str.parse::<i64>() {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid integer".into()),      
+                };
+                return DecodeResult::Complete(RespValue::Integer(i_itr), end_index + 2);
+            } else {
+                return DecodeResult::Incomplete;
+            }
+            // let i_str = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
+            // let i_itr = i_str.parse::<i64>().ok()?;
+            // Some((RespValue::Integer(i_itr), end_index + 2))
         }
 
         b'$' => {
-            let len_end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
-            let len_str = String::from_utf8(bytes[1..len_end_index].to_vec()).ok()?;
-            let len = len_str.parse::<usize>().ok()?;
-            if len > MAX_BULK_STRING_SIZE {
-                return Some((RespValue::Error("bulk string it too big".into()),bytes.len()))
-                // return None;
+            if let Some(len_end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                let len_str = match String::from_utf8(bytes[1..len_end_index+1].to_vec()) {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),
+                };
+                let len = match len_str.parse::<usize>() {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid integer".into()),
+                };
+                if len > MAX_BULK_STRING_SIZE {
+                    return DecodeResult::Error("Bulk string too large".into());
+                }
+                let data_start = len_end_index + 2;
+                let data_end = data_start + len;
+                if data_end > bytes.len() {
+                    return DecodeResult::Incomplete;
+                }
+                let bulk_string = bytes[data_start..data_end].to_vec();
+                return DecodeResult::Complete(RespValue::BulkString(bulk_string), data_end + 2);
+            } else {
+                return DecodeResult::Incomplete;
             }
-            // let data_start = len_end_index + 3;
-            let data_start = len_end_index + 2;
-            let data_end = data_start + len;
-            let bulk_string = bytes[data_start..data_end].to_vec();
-            Some((RespValue::BulkString(bulk_string), data_end + 2))
         }
 
         b'*' => {
-            let len_end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
-            let len_str = String::from_utf8(bytes[1..len_end_index].to_vec()).ok()?;
-            let len = len_str.parse::<usize>().ok()?;
-            let mut elements = Vec::with_capacity(len);
-            let mut current_offset = len_end_index + 2;
+            if let Some(len_end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                let len_str = match String::from_utf8(bytes[1..len_end_index+1].to_vec()) {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),
+                };
+                let len = match len_str.parse::<usize>() {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid integer".into()),
+                };
+                let mut elements = Vec::with_capacity(len);
+                let mut current_offset = len_end_index + 2;
 
-            for _ in 0..len {
-                if let Some((element, parsed_len)) = decode_resp_value(&bytes[current_offset..]) {
-                    elements.push(element);
-                    current_offset += parsed_len;
-                } else {
-                    return None;
+                for _ in 0..len {
+                    match decode_resp_value(&bytes[current_offset..]) {
+                        DecodeResult::Complete(element, parsed_len) => {
+                            elements.push(element);
+                            current_offset += parsed_len;
+                        }
+                        DecodeResult::Incomplete => {
+                            return DecodeResult::Incomplete;
+                        }
+                        DecodeResult::Error(e) => {
+                            return DecodeResult::Error(e);
+                        }
+                    }
                 }
+                return DecodeResult::Complete(RespValue::Array(elements), current_offset);
+            } else {
+                return DecodeResult::Incomplete;
             }
-            Some((RespValue::Array(elements), current_offset))
-            // Some((RespValue::Array(elements)),current_offset)
         }
 
         b'-' => {
-            let end_index = bytes[1..].iter().position(|&b| b == b'\r')? + 1;
-            let s = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
-            Some((RespValue::Error(s), end_index + 2))
+            if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                let s = match String::from_utf8(bytes[1..end_index+1].to_vec()) {
+                    Ok(v) => v,
+                    Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),
+                };
+                return DecodeResult::Complete(RespValue::Error(s), end_index + 2);
+            } else {
+                return DecodeResult::Incomplete;
+            }
         }
 
-        _ => None,
+        _ => return DecodeResult::Error("Invalid resp value".into()),
     }
 }

@@ -6,7 +6,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use crate::hash_operations::{handle_get, handle_set};
+use crate::{hash_operations::{handle_get, handle_set}, serial_deserial::DecodeResult};
 use crate::serial_deserial::{decode_resp_value, encode_resp_value};
 use crate::export_type::RespValue;
 use crate::db_ops::DBMessage;
@@ -24,14 +24,17 @@ pub async fn handle_client(
             println!("Client disconnected");
             break Ok(());
         }
+        
 
         buffer.extend_from_slice(&temp_buff[..n]);
 
-        while let Some((req,used_bytes  )) = decode_resp_value(&buffer){
-            buffer.drain(0..used_bytes);
-
-            let response = match req {
-                RespValue::Array(items) if !items.is_empty() => match items[0] {
+        // while let Some((req,used_bytes  )) = decode_resp_value(&buffer){
+        loop{
+            match decode_resp_value(&buffer){
+                DecodeResult::Complete(req, used_bytes) => {
+                    buffer.drain(0..used_bytes);
+                    let response = match req {
+                        RespValue::Array(items) if !items.is_empty() => match items[0] {
                     RespValue::BulkString(ref cmd_bytes) => {
                         match std::str::from_utf8(cmd_bytes)
                             .unwrap()
@@ -52,6 +55,14 @@ pub async fn handle_client(
 
             let resp_bytes = encode_resp_value(&response);
             socket.write_all(&resp_bytes).await?;
+            },
+            DecodeResult::Incomplete => break,
+            DecodeResult::Error(e) =>{
+                socket.write_all(format!("-Error decoding request: {}\r\n", e).as_bytes()).await?;
+                buffer.clear();
+                break;
+            }
         }
     }
+}
 }
