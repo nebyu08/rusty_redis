@@ -90,9 +90,7 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
             } else {
                 return DecodeResult::Incomplete;
             }
-            // let i_str = String::from_utf8(bytes[1..end_index].to_vec()).ok()?;
-            // let i_itr = i_str.parse::<i64>().ok()?;
-            // Some((RespValue::Integer(i_itr), end_index + 2))
+           
         }
 
         b'$' => {

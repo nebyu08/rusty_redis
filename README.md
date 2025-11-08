@@ -55,35 +55,26 @@ SET name nebiyu (RESP encoded):
 *3\r\n$3\r\nSET\r\n$4\r\nname\r\n$6\r\nnebiyu\r\n
 
 GET name (RESP encoded):
-*2\r\n$3\r\nGET\r\n$4\r\nname\r\n
-```
+## rusty_redis — minimal Redis-like server (demo)
 
-## Tests
+A tiny, educational Redis-like server written in Rust. It implements the RESP protocol and a few basic commands so you can explore how Redis works end-to-end.
 
-This repository includes integration tests in `tests/test.rs`. The tests start a server process with `cargo run` and then connect a `tokio` TCP client to `127.0.0.1:6381` to send RESP-encoded requests and assert responses.
+Key points
+- RESP parser/serializer (RESP protocol support)
+- Async TCP server using Tokio (default: 127.0.0.1:6381)
+- Simple commands: PING, SET, GET (string values)
+- Background DB thread communicates via mpsc/oneshot (no persistence)
 
-Run the full test suite with:
+Quick start
+- Build & run: `cargo run`
+- Connect with: `redis-cli -p 6381` (or send raw RESP over TCP)
 
-```bash
-cargo test
-```
+Tests
+- Integration tests live in `tests/test.rs`. Run them with `cargo test`.
 
-Notes and troubleshooting for tests:
+Limitations
+- Learning/demo only: not production-ready (no persistence, limited commands, no clustering).
 
-- The tests use the `serial_test` crate and the `#[serial]` attribute so they do not interfere with each other while spawning a server. Do not run multiple instances of the server on the same port.
-- If a test fails with connection errors, ensure nothing else is listening on port 6381 or increase the small startup delay in the tests (`sleep(Duration::from_millis(300))`) if your machine needs a bit more time to start the server.
-- If you want to run a single test by name, use e.g. `cargo test test_ping` which will run the test whose name contains `test_ping`.
-
-## Project layout
-
-- `src/main.rs` - application entry point (server implementation and main loop)
+If you want more commands or persistence, feel free to open a PR or extend the code.
 - `src/resp_protocol.rs` - RESP parsing and helpers
-- `tests/test.rs` - integration tests that exercise PING/SET/GET and a simple echo test
-
-## Contributing / Development notes
-
-- Use `cargo fmt` and `cargo clippy` to keep code style and catch simple lint issues.
-- The server is intentionally small — it is meant as a learning project. Consider adding more RESP types, persistence, or other Redis commands as exercises.
-
-If something in the tests or run experience is unclear, open an issue or edit this README with specifics about your environment (OS, rustc version) and the failing output.
 

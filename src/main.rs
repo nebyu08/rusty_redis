@@ -11,7 +11,7 @@ use crate::handle_connection::handle_client;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("127.0.0.1:6381").await?;
  
-    let db_sender=start_db_thread();
+    let db_sender=start_db_thread("snapshot.rdb");
     let db_sender=Arc::new(db_sender);
 
     loop {
