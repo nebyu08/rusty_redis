@@ -63,6 +63,12 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
     match bytes[0] {
         b'+' => {
         if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r'){
+            // add checking /n Todo:
+            if bytes.len()<=end_index+3 || bytes[end_index+2] != b'\n' {
+                return DecodeResult::Incomplete;
+            }
+
+
             let s =match String::from_utf8(bytes[1..end_index+1].to_vec()) {
                 Ok(v) => v,
                 Err(_) => return DecodeResult::Error("Invalid UTF-8".into())
@@ -78,6 +84,11 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
         b':' => {
 
             if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r'){
+                
+                if bytes.len()<=end_index+3 || bytes[end_index+2] != b'\n' {
+                return DecodeResult::Incomplete;
+                }
+
                 let i_str = match String::from_utf8(bytes[1..end_index+1].to_vec()) {
                     Ok(v) => v,
                     Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),      
@@ -95,6 +106,10 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
 
         b'$' => {
             if let Some(len_end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                if bytes.len() < len_end_index + 2 || bytes[len_end_index + 1] != b'\n' {
+                    return DecodeResult::Incomplete;
+                }
+
                 let len_str = match String::from_utf8(bytes[1..len_end_index+1].to_vec()) {
                     Ok(v) => v,
                     Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),
@@ -120,6 +135,10 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
 
         b'*' => {
             if let Some(len_end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                if bytes.len() < len_end_index + 2 || bytes[len_end_index + 1] != b'\n' {
+                    return DecodeResult::Incomplete;
+                }
+
                 let len_str = match String::from_utf8(bytes[1..len_end_index+1].to_vec()) {
                     Ok(v) => v,
                     Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),
@@ -153,6 +172,11 @@ pub fn decode_resp_value(bytes: &[u8]) -> DecodeResult {
 
         b'-' => {
             if let Some(end_index) = bytes[1..].iter().position(|&b| b == b'\r') {
+                
+                if bytes.len() < end_index + 3 || bytes[end_index + 2] != b'\n' {
+                    return DecodeResult::Incomplete;
+                }
+
                 let s = match String::from_utf8(bytes[1..end_index+1].to_vec()) {
                     Ok(v) => v,
                     Err(_) => return DecodeResult::Error("Invalid UTF-8".into()),

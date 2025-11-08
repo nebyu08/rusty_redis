@@ -21,6 +21,8 @@ pub async fn handle_set(items: &[RespValue], db_sender: &Arc::<Sender<DBMessage>
         _ => return RespValue::Error("value must be a bulk strin".into()),
     };
 
+    println!("set key: {}, value: {}", key, value);
+
     db_sender.send(DBMessage::Set { key, value }).await.unwrap();
 
     // db.lock().unwrap().insert(key, value);
