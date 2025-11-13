@@ -1,0 +1,18 @@
+# .cargo-release.toml
+# Automate versioning and tagging for crates.io releases
+
+# Release configuration
+release = true
+tag = true
+push = true
+publish = false    # Let GitHub Actions handle publishing
+
+# Commit message templates
+pre-release-commit-message = "chore: bump version to {{version}}"
+post-release-commit-message = "chore: prepare for next development iteration"
+
+# Tag name format
+tag-name = "v{{version}}"
+
+# Optional: run tests before tagging
+verify = true

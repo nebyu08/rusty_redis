@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fs::File, io::{BufReader, BufWriter,Write}, path::PathBuf};
 // use std::sync::mpsc::{self, Sender};
 use tokio::sync::{oneshot,mpsc};
-use std::{thread};
 
 
 #[derive(Debug)]
@@ -33,8 +32,8 @@ pub fn start_db_thread(path: impl Into<PathBuf>)->mpsc::Sender<DBMessage>{
 
     let (tx,mut rx) =  mpsc::channel(1024);
 
-    thread::spawn(async move || {
-        // let mut db: HashMap<String,String>=HashMap::new();
+    tokio::spawn(async move {
+        // let mut db: HashMap<String,String>=HashMap::new();                                               
 
         while let Some(message) = rx.recv().await {
             match message{
