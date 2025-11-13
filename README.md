@@ -1,31 +1,53 @@
-# rusty_redis
+# 🦀 rusty_redis
 
-A tiny Redis-like server written in Rust that speaks the RESP (REdis Serialization Protocol).
+A lightweight Redis-style key-value store built in Rust using Tokio. Supports RESP protocol, async clients, persistence, and key expiration.
 
-This project is a small learning implementation of a Redis-style in-memory server. It implements basic RESP command parsing and a handful of commands used by the tests:
+---
 
-- PING -> responds with +PONG
-- SET <key> <value> -> stores a string value and responds with +OK
-- GET <key> -> returns the stored value as a bulk string (e.g. $4\r\nrust\r\n)
+## Features
 
-The server binary is built with Cargo and the repository includes integration tests under `tests/test.rs` which exercise the server by spawning `cargo run` and talking RESP over TCP (default: 127.0.0.1:6381).
+### Core Commands
 
-## Requirements
+| Command | Description |
+|---------|-------------|
+| `SET key value` | Set a key-value pair |
+| `SET key value EX seconds` | Set key-value with expiration time |
+| `GET key` | Retrieve value or return Null |
+| `PING` | Returns PONG |
 
-- Rust toolchain (rustc + cargo). Install via https://rustup.rs if needed.
+###  Protocol Support
 
-## Build
+Fully implements **RESP2** (REdis Serialization Protocol):
+- Bulk strings
+- Arrays
+- Simple strings
+- Null responses
+- Error messages
 
-To build the project:
+###  Async Server
 
-```bash
-cargo build --release
-```
+- **Tokio-based** async runtime
+- Handles many clients concurrently with non-blocking I/O
+- High-performance concurrent request handling
 
-## Run the server
+###  Persistence
 
-Start the server locally (it will listen on 127.0.0.1:6381 by default):
+Every successful SET operation triggers a JSON snapshot write:
 
-```bash
-cargo run --quiet
-```
+- **Durable**: Data persisted to disk
+- **Crash-safe**: Atomic writes with temporary file `.tmp` pattern
+- **Human-readable**: JSON format for easy inspection
+
+Snapshot format includes:
+- `value`: The stored value
+- `expiration`: Optional expiration time (remaining seconds)
+
+---
+
+## Installation & Usage
+
+(Add installation and usage instructions here)
+
+## License
+
+(Add license information here)
