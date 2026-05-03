@@ -50,4 +50,4 @@ Snapshot format includes:
 
 ## License
 
-(Add license information here)
+MIT
