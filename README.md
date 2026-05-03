@@ -44,9 +44,7 @@ Snapshot format includes:
 
 ---
 
-## Installation & Usage
 
-(Add installation and usage instructions here)
 
 ## License
 
